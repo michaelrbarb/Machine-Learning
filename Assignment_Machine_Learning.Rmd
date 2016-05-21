@@ -1,0 +1,107 @@
+---
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Exercise Quality 
+===================================================
+<br/>
+
+### Synopsis
+Exercise is becoming an important part of general health for individuals and is of interest to the healthcare community as a whole.  Specifically, tracking the amount of exercise completed in a given time frame has been the focus of most fitness tracking devices. However, the future of exercise tracking will be determining the quality of exercise in addition to the quantity. This study will reference previously recorded exercise data in an attempt to predict quality of exercise from on-body and on-equipment sensor information.
+
+### Data Processing and Exploration
+The data utilized was sourced from the  [Human Activity Recognition and Weight Lifting Exercises](http://groupware.les.inf.puc-rio.br/har) website.
+```{r, message=FALSE,warning=FALSE,echo=FALSE}
+library(ElemStatLearn)
+library(AppliedPredictiveModeling)
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(scales)
+setwd("/Users/Barb/R/Machine Learning/Assignment")
+wleTrain<-read.csv("wle.csv",header=TRUE,sep=",")
+set.seed(33833)
+```
+The data was filtered to include only acceleration variables and sliced into a more managable data set.
+```{r, message=FALSE,warning=FALSE}
+wleTrain2<-select(wleTrain,contains("accel"),contains("classe"))
+wleTrain3<-select(wleTrain2,-contains("var"))
+InTrain<-createDataPartition(y=wleTrain3$classe,p=0.5,list=FALSE)
+wleTrain4<-wleTrain3[InTrain,]
+wleTest4<-wleTrain3[-InTrain,]
+InTrain<-createDataPartition(y=wleTrain4$classe,p=0.7,list=FALSE)
+wleTrain5<-wleTrain4[InTrain,]
+wleTest5<-wleTrain4[-InTrain,]
+```
+
+
+The exercise dataset was examined and exploratory plots were drawn with R.  The plots that illustrated interesting trends were *accel dumbbell y* vs *accel belt z* variables and *accel belt z* vs *accel dumbbell y* variables as shown below.  Accleration less than about -200 at the belt location in the z direction appear to all be of class E.  Additionally, class A and D show somewhat tight clusters on both plots.  Due to these observations classification and random forest models were deemed the most approriate model for the data.
+<br/>
+```{r fig.width=5, fig.height=3, fig.align='center', echo=FALSE, message=FALSE}
+p<-ggplot(wleTrain,aes(accel_belt_z,accel_dumbbell_y,col=classe))+geom_point()
+p + scale_color_gdocs()
+p2<-qplot(accel_belt_z,accel_dumbbell_z,col=classe,data=wleTrain)
+p2 + scale_color_gdocs()
+```
+
+### Model Training and Testing
+The rpart function from the caret package was used for prediction utilizing classification methodology.  Cross validation was implemented with the a K-fold of 5, a value not too big nor small which will keep bias and variance between the predicted and actual values within reason.  The R code and results are below.
+```{r, message=FALSE}
+set.seed(33833)
+modFitrpart<-train(classe~.,method='rpart',data=wleTrain5,trControl=trainControl(method="cv",number=5))
+print(modFitrpart$finalModel)
+print(modFitrpart)
+
+pred_rpart<-predict(modFitrpart,wleTest5)
+table(pred_rpart,wleTest5$classe)
+```
+
+```{r,echo=FALSE}
+missClass_rpart<-1-sum((pred_rpart == wleTest5$classe)*1)/length(wleTest5$classe)
+accuracy_rpart<-sum((pred_rpart == wleTest5$classe)*1)/length(wleTest5$classe)
+missClass_rpart_per <-paste(round((missClass_rpart)*100,digits=2),"%",sep="")
+accuracy_rpart<-paste(round((accuracy_rpart)*100,digits=2),"%",sep="")
+```
+The best model had an Accuracy of 44% (56% classification error).  The rpart model was used to predict the test set to validate the error rate from the rpart function. Results from applying the model to the test data is shown above.  The accuracy using rpart on the test model was  **`r format(accuracy_rpart,scientific=FALSE)`**; similar value to the rpart generated accuracy indicating that the model only predicts approximately 40% of the correct responses of any given data set.
+
+The accuracy and classification error values were less than ideal, therefore a random forest approach was used.  The random forest model was implemented with the caret package and a K-fold value of 5.  The model was validated by applying it to the test set. The out of bag estimate, or out of sample error of the random forest model was estimated at 5.49%.  Additionally, the worst classification error was only 8.88% for classe *B*.  Both values indicate a strong model with high prediction power.
+
+```{r, message=FALSE}
+set.seed(33833)
+modFit <- train(classe ~ .,method="rf",trControl=trainControl(method="cv",number=5),
+                savePredictions = T,data=wleTrain5)
+print(modFit)
+print(modFit$finalModel)
+
+pred_rf<-predict(modFit,wleTest5)
+table(pred_rf,wleTest5$classe) 
+```
+
+```{r,echo=FALSE}
+missClass_rf<-1-sum((pred_rf == wleTest5$classe)*1)/length(wleTest5$classe)
+missClass_rf_per <- paste(round((missClass_rf)*100,digits=2),"%",sep="")
+missClass_rf_per<-format(missClass_rf_per,digits=2)
+```
+The model was applied to the test set and the classification error was calculated as **`r format(missClass_rf_per,scientific=FALSE)`** indicating that a small percentage of the data was indeed incorrectly categorized. The actual prediction table can be viewed above. Additionally, the calculated classification error is similar to the value generated by the random forest R function thereby validating our model was constructed correctly. The random forest model is superior to the rpart classifcation model used above and was utilized as the final model for quiz 4.
+A characteristic of the random forest model worth noting is that after examining variable importance it is clear that the *accel dumbbel y*, *accel belt z* and *accel dumbbel z* are the top variables in predicting the exercise classe which could prove useful in future studies or data collection for exercise tracking devices.
+<br/>
+```{r fig.width=5, fig.height=3, fig.align='center', echo=FALSE, message=FALSE}
+imp<-varImp(modFit)
+imp<-data.frame(imp[1])
+names<-rownames(imp)
+imp<-cbind(names,imp)
+colnames(imp)<-c("var","importance")
+imp<-data.frame(imp,row.names=NULL)
+imp <- imp[order(-imp$importance),] 
+p<-ggplot(data=imp,aes(x = reorder(var, importance),y=importance))+geom_bar(stat="identity",fill="dodgerblue2")
+p + coord_flip()+labs(y="% importance",x="accelerometer variable")
+```
+
+### Conclusion
+Exercise data and the method at which we track and report that information will continue to be important to the health conscious person.  Results from human activity recognition experiments will help to further development of fitness trackers thanks to machine learning techniques employed by data scientists. The decision trees and random forests models will be important tools to use in future development of health and fitness trackers as evidenced by the weight lifting exercise data examined in this study. 
+
