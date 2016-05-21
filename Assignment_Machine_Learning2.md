@@ -94,7 +94,7 @@ table(pred_rpart,wleTest5$classe)
 ```
 
 
-The best model had an Accuracy of 44% (56% classification error).  The rpart model was used to predict the test set to validate the error rate from the rpart function. Results from applying the model to the test data is shown above.  The accuracy using rpart on the test model was  **38.88%**; similar value to the rpart generated accuracy indicating that the model only predicts approximately 40% of the correct responses of any given data set.
+The best model had an Accuracy of 44% (56% classification error).  The rpart model was used to predict the test set to validate the error rate from the rpart function. Results from applying the model to the test data is shown above.  The accuracy using rpart on the test data was  **38.88%**; similar value to the rpart generated accuracy indicating that the model only predicts approximately 40% of the correct responses of any given data set.
 
 The accuracy and classification error values were less than ideal, therefore a random forest approach was used.  The random forest model was implemented with the caret package and a K-fold value of 5.  The model was validated by applying it to the test set. The out of bag estimate, or out of sample error of the random forest model was estimated at 5.49%.  Additionally, the worst classification error was only 8.88% for classe *B*.  Both values indicate a strong model with high prediction power.
 
